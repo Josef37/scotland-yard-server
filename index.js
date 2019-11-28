@@ -16,6 +16,7 @@ io.on("connection", socket => {
 
   socket.on("move", move => {
     const player = players[socket.id];
+    if (!player) return;
     if (!isValidMove(move, player)) return;
     const game = player.game;
     doMove(move, game);
@@ -24,7 +25,8 @@ io.on("connection", socket => {
     } else {
       socket.emit("move", move);
     }
-    switchTurns(game);
+    const switchedTurns = switchTurns(game);
+    if (!switchedTurns) return;
     const winner = getWinner(game);
     if (winner) triggerGameover(game, winner);
   });
@@ -51,7 +53,7 @@ function updateLobby() {
 function isValidMove(move, player) {
   const game = player.game;
   if (!game || game.winner) return false;
-  const { pieceId, stationNumber } = move;
+  const { pieceId, stationNumber, ticketType } = move;
   const station = game.stations.find(
     station => station.number === stationNumber
   );
@@ -60,34 +62,52 @@ function isValidMove(move, player) {
 
   if (!player.ownPieceIds.includes(pieceId)) return false;
   if (game.mrXTurn !== player.isMrX) return false;
-  const connection = findConnection(
+  const connections = findConnections(
     game.connections,
     piece.stationNumber,
     stationNumber
   );
-  if (!connection) return false;
+  if (!connections.length) return false;
   if (game.movedPieces.includes(pieceId)) return false;
 
   if (
     game.pieces
       .filter(piece => !piece.isMrX)
       .find(piece => piece.stationNumber === stationNumber)
-  )
+  ) {
     return false;
-  // ticket is valid
-  // player has ticket
+  }
+
+  if (!isValidTicket(ticketType, connections)) {
+    return false;
+  }
+  if (!piece.tickets.get(ticketType)) {
+    return false;
+  }
+
   return true;
 }
 
-function doMove(move, game) {
-  const { pieceId, stationNumber } = move;
-  const piece = game.pieces.find(piece => pieceId === piece.id);
-  game.movedPieces.push(pieceId);
-  piece.stationNumber = stationNumber;
+function isValidTicket(ticketType, connections) {
+  return connections.some(connection =>
+    transportationToTicketMap.get(connection.type).includes(ticketType)
+  );
 }
 
-function findConnection(connections, station1Number, station2Number) {
-  return connections.find(
+function doMove(move, game) {
+  const { pieceId, stationNumber, ticketType } = move;
+  game.movedPieces.push(pieceId);
+  const piece = game.pieces.find(piece => pieceId === piece.id);
+  piece.stationNumber = stationNumber;
+  collectTicket(piece, ticketType);
+}
+
+function collectTicket(piece, ticketType) {
+  piece.tickets.set(piece.tickets.get(ticketType) - 1);
+}
+
+function findConnections(connections, station1Number, station2Number) {
+  return connections.filter(
     connection =>
       (connection.station1Number === station1Number &&
         connection.station2Number === station2Number) ||
@@ -102,6 +122,7 @@ function switchTurns(game) {
     game.movedPieces = [];
     io.to(game.room).emit("mr x done");
     game.mrXMovesCompleted++;
+    return true;
   } else if (
     !game.mrXTurn &&
     game.movedPieces.length === game.pieces.length - 1
@@ -109,7 +130,9 @@ function switchTurns(game) {
     game.mrXTurn = true;
     game.movedPieces = [];
     io.to(game.room).emit("detectives done");
+    return true;
   }
+  return false;
 }
 
 const getWinner = game => {
@@ -231,6 +254,13 @@ const TicketType = {
   Black: 3,
   Double: 4
 };
+
+const transportationToTicketMap = new Map([
+  [TransportationType.Taxi, [TicketType.Taxi, TicketType.Black]],
+  [TransportationType.Bus, [TicketType.Bus, TicketType.Black]],
+  [TransportationType.Underground, [TicketType.Underground, TicketType.Black]],
+  [TransportationType.Ferry, [TicketType.Black]]
+]);
 
 const mrXTickets = () => {
   return new Map([
