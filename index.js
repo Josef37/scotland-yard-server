@@ -25,7 +25,8 @@ io.on("connection", socket => {
       socket.emit("move", move);
     }
     switchTurns(game);
-    console.log(game);
+    const winner = getWinner(game);
+    if (winner) triggerGameover(game, winner);
   });
 
   socket.on("disconnect", () => {
@@ -49,8 +50,8 @@ function updateLobby() {
 
 function isValidMove(move, player) {
   const game = player.game;
-  if (!game) return false;
-  const { piece: pieceId, station: stationNumber } = move;
+  if (!game || game.winner) return false;
+  const { pieceId, stationNumber } = move;
   const station = game.stations.find(
     station => station.number === stationNumber
   );
@@ -61,7 +62,7 @@ function isValidMove(move, player) {
   if (game.mrXTurn !== player.isMrX) return false;
   const connection = findConnection(
     game.connections,
-    piece.station,
+    piece.stationNumber,
     stationNumber
   );
   if (!connection) return false;
@@ -70,7 +71,7 @@ function isValidMove(move, player) {
   if (
     game.pieces
       .filter(piece => !piece.isMrX)
-      .find(piece => piece.station === stationNumber)
+      .find(piece => piece.stationNumber === stationNumber)
   )
     return false;
   // ticket is valid
@@ -79,17 +80,19 @@ function isValidMove(move, player) {
 }
 
 function doMove(move, game) {
-  const { piece: pieceId, station: stationNumber } = move;
+  const { pieceId, stationNumber } = move;
   const piece = game.pieces.find(piece => pieceId === piece.id);
   game.movedPieces.push(pieceId);
-  piece.station = stationNumber;
+  piece.stationNumber = stationNumber;
 }
 
-function findConnection(connections, station1, station2) {
+function findConnection(connections, station1Number, station2Number) {
   return connections.find(
     connection =>
-      (connection.station1 === station1 && connection.station2 === station2) ||
-      (connection.station1 === station2 && connection.station2 === station1)
+      (connection.station1Number === station1Number &&
+        connection.station2Number === station2Number) ||
+      (connection.station1Number === station2Number &&
+        connection.station2Number === station1Number)
   );
 }
 
@@ -98,6 +101,7 @@ function switchTurns(game) {
     game.mrXTurn = false;
     game.movedPieces = [];
     io.to(game.room).emit("mr x done");
+    game.mrXMovesCompleted++;
   } else if (
     !game.mrXTurn &&
     game.movedPieces.length === game.pieces.length - 1
@@ -107,6 +111,50 @@ function switchTurns(game) {
     io.to(game.room).emit("detectives done");
   }
 }
+
+const getWinner = game => {
+  const mrXPiece = game.pieces.find(piece => piece.isMrX);
+  const isMrXCaught = game.pieces.some(
+    piece =>
+      piece !== mrXPiece && mrXPiece.stationNumber === piece.stationNumber
+  );
+  if (isMrXCaught) {
+    return "detectives";
+  }
+
+  const stationsNextToMrX = getStationsNextToStation(
+    mrXPiece.stationNumber,
+    game.connections
+  );
+  const isMrXSourrounded = stationsNextToMrX.every(stationNumber =>
+    game.pieces.find(piece => piece.stationNumber === stationNumber)
+  );
+  if (isMrXSourrounded && game.mrXTurn) {
+    return "detectives";
+  }
+
+  if (game.mrXMovesCompleted >= 3 && game.mrXTurn) {
+    return "mrx";
+  }
+};
+
+const getStationsNextToStation = (stationNumber, connections) => {
+  return connections.reduce((stations, connection) => {
+    if (stationNumber === connection.station1Number)
+      return stations.concat(connection.station2Number);
+    else if (stationNumber === connection.station2Number)
+      return stations.concat(connection.station1Number);
+    return stations;
+  }, []);
+};
+
+const triggerGameover = (game, winner) => {
+  io.to(game.room).emit(
+    "game over",
+    winner === "mrx" ? "Mr X won" : "Detectives won"
+  );
+  game.winner = winner;
+};
 
 function startGameWhenPossible(numberOfPlayers = 3) {
   const searchingPlayerIds = Object.values(players)
@@ -127,7 +175,7 @@ function startGameWhenPossible(numberOfPlayers = 3) {
   const detectiveIds = playerIds.filter(id => id !== mrXId);
   const mrXPiece = {
     id: 1,
-    station: random.pick(startingPositions.mrX),
+    stationNumber: random.pick(startingPositions.mrX),
     color: "lightgrey",
     tickets: mrXTickets(),
     isMrX: true
@@ -139,7 +187,7 @@ function startGameWhenPossible(numberOfPlayers = 3) {
   const detectivePieces = detectiveIds.map((id, index) => {
     const piece = {
       id: index + 2,
-      station: detectivePositions[index],
+      stationNumber: detectivePositions[index],
       color: pieceColors[index],
       tickets: detectiveTicktes(),
       isMrX: false
@@ -153,7 +201,8 @@ function startGameWhenPossible(numberOfPlayers = 3) {
     connections,
     pieces: detectivePieces.concat(mrXPiece),
     mrXTurn: true,
-    movedPieces: []
+    movedPieces: [],
+    mrXMovesCompleted: 0
   });
 
   for (const playerId of playerIds) {
@@ -226,18 +275,22 @@ const gameboard = {
     { number: 7, x: 3, y: 2 }
   ],
   connections: [
-    { station1: 1, station2: 2, type: TransportationType.Taxi },
-    { station1: 2, station2: 3, type: TransportationType.Taxi },
-    { station1: 3, station2: 4, type: TransportationType.Taxi },
-    { station1: 4, station2: 7, type: TransportationType.Taxi },
-    { station1: 7, station2: 6, type: TransportationType.Taxi },
-    { station1: 6, station2: 5, type: TransportationType.Taxi },
-    { station1: 5, station2: 1, type: TransportationType.Taxi },
-    { station1: 1, station2: 6, type: TransportationType.Bus },
-    { station1: 6, station2: 4, type: TransportationType.Bus },
-    { station1: 4, station2: 3, type: TransportationType.Bus },
-    { station1: 3, station2: 1, type: TransportationType.Bus },
-    { station1: 1, station2: 4, type: TransportationType.Underground }
+    { station1Number: 1, station2Number: 2, type: TransportationType.Taxi },
+    { station1Number: 2, station2Number: 3, type: TransportationType.Taxi },
+    { station1Number: 3, station2Number: 4, type: TransportationType.Taxi },
+    { station1Number: 4, station2Number: 7, type: TransportationType.Taxi },
+    { station1Number: 7, station2Number: 6, type: TransportationType.Taxi },
+    { station1Number: 6, station2Number: 5, type: TransportationType.Taxi },
+    { station1Number: 5, station2Number: 1, type: TransportationType.Taxi },
+    { station1Number: 1, station2Number: 6, type: TransportationType.Bus },
+    { station1Number: 6, station2Number: 4, type: TransportationType.Bus },
+    { station1Number: 4, station2Number: 3, type: TransportationType.Bus },
+    { station1Number: 3, station2Number: 1, type: TransportationType.Bus },
+    {
+      station1Number: 1,
+      station2Number: 4,
+      type: TransportationType.Underground
+    }
   ],
   startingPositions: {
     mrX: [1, 7],
