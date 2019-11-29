@@ -62,13 +62,20 @@ function isValidMove(move, player) {
 
   if (!player.ownPieceIds.includes(pieceId)) return false;
   if (game.mrXTurn !== player.isMrX) return false;
+  if (
+    player.isMrX &&
+    ticketType === TicketType.Double &&
+    piece.tickets.get(TicketType.Double)
+  ) {
+    return true;
+  }
   const connections = findConnections(
     game.connections,
     piece.stationNumber,
     stationNumber
   );
   if (!connections.length) return false;
-  if (game.movedPieces.includes(pieceId)) return false;
+  if (game.movedPieces.includes(pieceId) && !game.mrXTurn) return false;
 
   if (
     game.pieces
@@ -96,9 +103,14 @@ function isValidTicket(ticketType, connections) {
 
 function doMove(move, game) {
   const { pieceId, stationNumber, ticketType } = move;
-  game.movedPieces.push(pieceId);
   const piece = game.pieces.find(piece => pieceId === piece.id);
-  piece.stationNumber = stationNumber;
+  if (ticketType !== TicketType.Double) {
+    game.movedPieces.push(pieceId);
+    piece.stationNumber = stationNumber;
+  } else {
+    game.doubleTicket = true;
+    move.stationNumber = piece.stationNumber;
+  }
   collectTicket(piece, ticketType);
 }
 
@@ -117,9 +129,10 @@ function findConnections(connections, station1Number, station2Number) {
 }
 
 function switchTurns(game) {
-  if (game.mrXTurn && game.movedPieces.length === 1) {
+  if (game.mrXTurn && game.movedPieces.length === (game.doubleTicket ? 2 : 1)) {
     game.mrXTurn = false;
     game.movedPieces = [];
+    game.doubleTicket = false;
     io.to(game.room).emit("mr x done");
     game.mrXMovesCompleted++;
     return true;
