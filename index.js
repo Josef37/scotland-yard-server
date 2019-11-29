@@ -24,6 +24,7 @@ io.on("connection", socket => {
       io.to(game.room).emit("move", move);
     } else {
       socket.emit("move", move);
+      io.to(game.room).emit("mr x ticket", move.ticketType);
     }
     const switchedTurns = switchTurns(game);
     if (!switchedTurns) return;
@@ -192,7 +193,7 @@ const triggerGameover = (game, winner) => {
   game.winner = winner;
 };
 
-function startGameWhenPossible(numberOfPlayers = 3) {
+function startGameWhenPossible(numberOfPlayers = 2) {
   const searchingPlayerIds = Object.values(players)
     .filter(player => !player.game)
     .map(player => player.socket.id);
