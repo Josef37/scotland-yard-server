@@ -20,13 +20,19 @@ io.on("connection", socket => {
     if (!isValidMove(move, player)) return;
     const game = player.game;
     doMove(move, game);
+    const switchedTurns = switchTurns(game);
     if (!player.isMrX) {
       io.to(game.room).emit("move", move);
     } else {
       socket.emit("move", move);
+      socket.broadcast.to(game.room).emit("move", {
+        ...move,
+        stationNumber: game.mrXAppears.includes(game.mrXMovesCompleted)
+          ? move.stationNumber
+          : 0
+      });
       io.to(game.room).emit("mr x ticket", move.ticketType);
     }
-    const switchedTurns = switchTurns(game);
     if (!switchedTurns) return;
     const winner = getWinner(game);
     if (winner) triggerGameover(game, winner);
@@ -110,6 +116,7 @@ function doMove(move, game) {
     piece.stationNumber = stationNumber;
   } else {
     game.doubleTicket = true;
+    game.mrXMovesCompleted++;
     move.stationNumber = piece.stationNumber;
   }
   collectTicket(piece, ticketType);
@@ -170,7 +177,7 @@ const getWinner = game => {
     return "detectives";
   }
 
-  if (game.mrXMovesCompleted >= 3 && game.mrXTurn) {
+  if (game.mrXMovesCompleted >= 10 && game.mrXTurn) {
     return "mrx";
   }
 };
@@ -239,12 +246,14 @@ function startGameWhenPossible(numberOfPlayers = 2) {
     pieces: detectivePieces.concat(mrXPiece),
     mrXTurn: true,
     movedPieces: [],
-    mrXMovesCompleted: 0
+    mrXMovesCompleted: 0,
+    mrXAppears: [1, 3]
   });
 
   for (const playerId of playerIds) {
     let pieces = detectivePieces.slice();
     if (playerId === mrXId) pieces.push(mrXPiece);
+    else pieces.push({ ...mrXPiece, stationNumber: 0 });
     players[playerId].socket.emit("start game", {
       stations,
       connections,
