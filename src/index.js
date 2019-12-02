@@ -103,7 +103,8 @@ function isValidMove(move, player) {
   if (!isValidTicket(ticketType, connections)) {
     return false;
   }
-  if (!piece.tickets.get(ticketType)) {
+  const ticketCount = piece.tickets.get(ticketType);
+  if (ticketCount === undefined || ticketCount <= 0) {
     return false;
   }
 
@@ -263,6 +264,11 @@ function startGameWhenPossible(numberOfPlayers = 2) {
     let pieces = detectivePieces.slice();
     if (playerId === mrXId) pieces.push(mrXPiece);
     else pieces.push({ ...mrXPiece, stationNumber: 0 });
+    // Serialize Map for sending
+    pieces = pieces.map(piece => ({
+      ...piece,
+      tickets: Array.from(piece.tickets)
+    }));
     players[playerId].socket.emit("start game", {
       stations,
       connections,
