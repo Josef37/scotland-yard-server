@@ -232,7 +232,8 @@ function startGameWhenPossible(numberOfPlayers = 2) {
     stationNumber: random.pick(startingPositions.mrX),
     color: "lightgrey",
     tickets: mrXTickets(),
-    isMrX: true
+    isMrX: true,
+    playerName: players[mrXId].name
   };
   players[mrXId].ownPieceIds.push(mrXPiece.id);
   const detectivePositions = random.shuffle(
@@ -244,7 +245,8 @@ function startGameWhenPossible(numberOfPlayers = 2) {
       stationNumber: detectivePositions[index],
       color: pieceColors[index],
       tickets: detectiveTicktes(),
-      isMrX: false
+      isMrX: false,
+      playerName: players[id].name
     };
     players[id].ownPieceIds.push(piece.id);
     return piece;
@@ -262,8 +264,8 @@ function startGameWhenPossible(numberOfPlayers = 2) {
 
   for (const playerId of playerIds) {
     let pieces = detectivePieces.slice();
-    if (playerId === mrXId) pieces.push(mrXPiece);
-    else pieces.push({ ...mrXPiece, stationNumber: 0 });
+    if (playerId === mrXId) pieces.unshift(mrXPiece);
+    else pieces.unshift({ ...mrXPiece, stationNumber: 0 });
     // Serialize Map for sending
     pieces = pieces.map(piece => ({
       ...piece,
