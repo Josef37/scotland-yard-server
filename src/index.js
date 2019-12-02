@@ -201,10 +201,11 @@ const getStationsNextToStation = (stationNumber, connections) => {
 };
 
 const triggerGameover = (game, winner) => {
-  io.to(game.room).emit(
-    "game over",
-    winner === "mrx" ? "Mr X won" : "Detectives won"
-  );
+  if (winner === "mrx") {
+    io.to(game.room).emit("mr x won");
+  } else {
+    io.to(game.room).emit("detectives won");
+  }
   game.winner = winner;
 };
 
@@ -266,7 +267,8 @@ function startGameWhenPossible(numberOfPlayers = 2) {
       stations,
       connections,
       pieces,
-      ownPieceIds: players[playerId].ownPieceIds
+      ownPieceIds: players[playerId].ownPieceIds,
+      mrXTurn: true
     });
   }
 }
