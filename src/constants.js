@@ -1,16 +1,16 @@
 const TransportationType = {
-  Taxi: 0,
-  Bus: 1,
-  Underground: 2,
-  Ferry: 3
+  Taxi: "Taxi",
+  Bus: "Bus",
+  Underground: "Underground",
+  Ferry: "Ferry"
 };
 
 const TicketType = {
-  Taxi: 0,
-  Bus: 1,
-  Underground: 2,
-  Black: 3,
-  Double: 4
+  Taxi: "Taxi",
+  Bus: "Bus",
+  Underground: "Underground",
+  Black: "Black",
+  Double: "Double"
 };
 
 const transportationToTicketMap = new Map([
