@@ -27,7 +27,7 @@ class Game {
     this.doubleTicket = false;
     this.movedPieces = [];
     this.mrXMovesCompleted = 0;
-    this.mrXAppears = [1, 3];
+    this.mrXAppears = [3, 8, 13, 18, 24];
     /** @type {?("mrx"|"det")} */
     this.winner;
 
