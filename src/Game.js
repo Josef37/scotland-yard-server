@@ -194,14 +194,19 @@ class Game {
   }
 
   getWinner() {
-    const mrXPiece = this.pieces.find(piece => piece.isMrX);
-    const isMrXCaught = this.pieces
-      .filter(piece => piece !== mrXPiece)
-      .some(detective => mrXPiece.stationNumber === detective.stationNumber);
-    if (isMrXCaught) {
+    if (this.isMrXCaught()) {
       return "det";
     }
+    if (this.mrXTurn && this.isMrXSurrounded()) {
+      return "det";
+    }
+    if (this.mrXTurn && this.mrXMovesCompleted >= 23) {
+      return "mrx";
+    }
+  }
 
+  isMrXSurrounded() {
+    const mrXPiece = this.pieces.find(piece => piece.isMrX);
     const stationsNextToMrX = getStationsNextToStation(
       mrXPiece.stationNumber,
       this.connections
@@ -209,13 +214,15 @@ class Game {
     const isMrXSourrounded = stationsNextToMrX.every(stationNumber =>
       this.pieces.find(piece => piece.stationNumber === stationNumber)
     );
-    if (isMrXSourrounded && this.mrXTurn) {
-      return "det";
-    }
+    return isMrXSourrounded;
+  }
 
-    if (this.mrXMovesCompleted >= 23 && this.mrXTurn) {
-      return "mrx";
-    }
+  isMrXCaught() {
+    const mrXPiece = this.pieces.find(piece => piece.isMrX);
+    const isMrXCaught = this.pieces
+      .filter(piece => piece !== mrXPiece)
+      .some(detective => mrXPiece.stationNumber === detective.stationNumber);
+    return isMrXCaught;
   }
 
   broadcastGameover() {
