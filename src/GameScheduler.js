@@ -1,11 +1,4 @@
-const {
-  mrXTickets,
-  pieceColors,
-  detectiveTicktes,
-  TicketType,
-  transportationToTicketMap
-} = require("./constants");
-const { Game } = require("./Game");
+const Game = require("./Game");
 
 class GameScheduler {
   constructor(io) {
@@ -15,10 +8,6 @@ class GameScheduler {
     this.games = [];
   }
 
-  /**
-   * Joins player to the lobby for searching games
-   * @param  {{name: string, socket: SocketIO.Socket}} player
-   */
   joinLobby(player) {
     this.lobby = this.lobby.concat(player);
     this.io.emit("load lobby", {
@@ -41,6 +30,4 @@ class GameScheduler {
   }
 }
 
-module.exports = {
-  GameScheduler
-};
+module.exports = GameScheduler;
