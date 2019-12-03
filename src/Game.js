@@ -24,9 +24,12 @@ class Game {
     this.connections = connections;
     this.pieces = [mrXPiece].concat(detectivePieces);
     this.mrXTurn = true;
+    this.doubleTicket = false;
     this.movedPieces = [];
     this.mrXMovesCompleted = 0;
     this.mrXAppears = [1, 3];
+    /** @type {?("mrx"|"det")} */
+    this.winner;
 
     players.forEach(player => player.joinGame(this));
   }
@@ -76,117 +79,127 @@ class Game {
     return { mrXPiece, detectivePieces, mrX };
   }
 
-  isValidMove(move, player) {
+  isMovePossible(move, player) {
     if (this.winner) return false;
     const { pieceId, stationNumber, ticketType } = move;
-    const station = this.stations.find(
-      station => station.number === stationNumber
-    );
-    const piece = this.pieces.find(piece => piece.id === pieceId);
-    if (!piece || !station) return false;
+    const { piece, station } = this.parseMove(move);
 
+    if (!piece) return false;
     if (!player.ownPieceIds.includes(pieceId)) return false;
     if (this.mrXTurn !== player.isMrX) return false;
-    if (
-      player.isMrX &&
-      ticketType === TicketType.Double &&
-      piece.tickets.get(TicketType.Double)
-    ) {
-      return true;
-    }
+    if (this.movedPieces.includes(pieceId)) return false;
+    if (this.isValidDoubleTicket(player, ticketType, piece)) return true;
+
+    if (!station) return false;
     const connections = findConnections(
       this.connections,
       piece.stationNumber,
       stationNumber
     );
     if (!connections.length) return false;
-    if (this.movedPieces.includes(pieceId) && !this.mrXTurn) return false;
-
-    if (
-      this.pieces
-        .filter(piece => !piece.isMrX)
-        .find(piece => piece.stationNumber === stationNumber)
-    ) {
-      return false;
-    }
-
-    if (!isValidTicket(ticketType, connections)) {
-      return false;
-    }
-    const ticketCount = piece.tickets.get(ticketType);
-    if (ticketCount === undefined || ticketCount <= 0) {
-      return false;
-    }
+    if (this.isPersecutorAt(stationNumber)) return false;
+    if (!isValidTicket(ticketType, connections)) return false;
+    if (!this.pieceHasTicket(piece, ticketType)) return false;
 
     return true;
   }
 
+  isValidDoubleTicket(player, ticketType, piece) {
+    return (
+      player.isMrX &&
+      !this.doubleTicket &&
+      ticketType === TicketType.Double &&
+      this.pieceHasTicket(piece, TicketType.Double)
+    );
+  }
+
+  parseMove({ stationNumber, pieceId }) {
+    const station = this.stations.find(
+      station => station.number === stationNumber
+    );
+    const piece = this.pieces.find(piece => piece.id === pieceId);
+    return { piece, station };
+  }
+
+  pieceHasTicket(piece, ticketType) {
+    const ticketCount = piece.tickets.get(ticketType);
+    return ticketCount && ticketCount > 0;
+  }
+
+  isPersecutorAt(stationNumber) {
+    return this.pieces
+      .filter(piece => !piece.isMrX)
+      .some(piece => piece.stationNumber === stationNumber);
+  }
+
   doMove(move, player) {
     const { pieceId, stationNumber, ticketType } = move;
-    const piece = this.pieces.find(piece => pieceId === piece.id);
-    if (ticketType !== TicketType.Double) {
+    const { piece } = this.parseMove(move);
+    collectTicket(piece, ticketType);
+    this.broadcastMove(player, move);
+    if (ticketType == TicketType.Double) {
+      this.doubleTicket = true;
+    } else {
       this.movedPieces.push(pieceId);
       piece.stationNumber = stationNumber;
-    } else {
-      this.doubleTicket = true;
-      this.mrXMovesCompleted++;
-      move.stationNumber = piece.stationNumber;
+      if (this.mrXTurn) this.mrXMovesCompleted++;
+      const switchedTurns = this.switchTurns();
+      if (switchedTurns) {
+        const winner = this.getWinner();
+        if (winner) {
+          this.winner = winner;
+          this.broadcastGameover(winner);
+        }
+      }
     }
-    collectTicket(piece, ticketType);
-
-    const switchedTurns = this.switchTurns();
-    this.broadcastMove(player, move);
-    if (!switchedTurns) return;
-    const winner = this.getWinner();
-    if (winner) this.triggerGameover(winner);
   }
 
   broadcastMove(player, move) {
-    if (!player.isMrX) {
+    if (move.ticketType === TicketType.Double) {
+      this.io.to(this.room).emit("mr x ticket", TicketType.Double);
+    } else if (!player.isMrX) {
       this.io.to(this.room).emit("move", move);
     } else {
       player.socket.emit("move", move);
-      player.socket.broadcast.to(this.room).emit("move", {
-        ...move,
-        stationNumber: this.mrXAppears.includes(this.mrXMovesCompleted)
-          ? move.stationNumber
-          : 0
-      });
       this.io.to(this.room).emit("mr x ticket", move.ticketType);
+      const mrXAppears = this.mrXAppears.includes(this.mrXMovesCompleted);
+      if (mrXAppears) {
+        player.socket.broadcast.to(this.room).emit("move", move);
+      } else {
+        const hiddenMove = { ...move, stationNumber: 0 };
+        player.socket.broadcast.to(this.room).emit("move", hiddenMove);
+      }
     }
   }
 
   switchTurns() {
-    if (
-      this.mrXTurn &&
-      this.movedPieces.length === (this.doubleTicket ? 2 : 1)
-    ) {
+    if (this.mrXTurn) {
+      if (this.doubleTicket && this.movedPieces.length === 1) {
+        this.movedPieces = [];
+        this.doubleTicket = false;
+        return false;
+      }
+      if (this.movedPieces.length < 1) return false;
       this.mrXTurn = false;
       this.movedPieces = [];
-      this.doubleTicket = false;
       this.io.to(this.room).emit("mr x done");
-      this.mrXMovesCompleted++;
       return true;
-    } else if (
-      !this.mrXTurn &&
-      this.movedPieces.length === this.pieces.length - 1
-    ) {
+    } else {
+      if (this.movedPieces.length < this.pieces.length - 1) return false;
       this.mrXTurn = true;
       this.movedPieces = [];
       this.io.to(this.room).emit("detectives done");
       return true;
     }
-    return false;
   }
 
   getWinner() {
     const mrXPiece = this.pieces.find(piece => piece.isMrX);
-    const isMrXCaught = this.pieces.some(
-      piece =>
-        piece !== mrXPiece && mrXPiece.stationNumber === piece.stationNumber
-    );
+    const isMrXCaught = this.pieces
+      .filter(piece => piece !== mrXPiece)
+      .some(detective => mrXPiece.stationNumber === detective.stationNumber);
     if (isMrXCaught) {
-      return "detectives";
+      return "det";
     }
 
     const stationsNextToMrX = getStationsNextToStation(
@@ -197,21 +210,22 @@ class Game {
       this.pieces.find(piece => piece.stationNumber === stationNumber)
     );
     if (isMrXSourrounded && this.mrXTurn) {
-      return "detectives";
+      return "det";
     }
 
-    if (this.mrXMovesCompleted >= 10 && this.mrXTurn) {
+    if (this.mrXMovesCompleted >= 23 && this.mrXTurn) {
       return "mrx";
     }
   }
 
-  triggerGameover(winner) {
-    if (winner === "mrx") {
+  broadcastGameover() {
+    if (this.winner === "mrx") {
       this.io.to(this.room).emit("mr x won");
-    } else {
+    } else if (this.winner === "det") {
       this.io.to(this.room).emit("detectives won");
+    } else {
+      console.log("invalid gameover broadcast");
     }
-    this.winner = winner;
   }
 }
 

@@ -27,7 +27,7 @@ class Player {
 
   initClientMoveHandler() {
     this.socket.on("move", move => {
-      if (!this.game.isValidMove(move, this)) return;
+      if (!this.game.isMovePossible(move, this)) return;
       this.game.doMove(move, this);
     });
   }
