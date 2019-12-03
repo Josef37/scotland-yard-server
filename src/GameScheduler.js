@@ -1,4 +1,5 @@
 const Game = require("./Game");
+const Player = require("./Player");
 
 class GameScheduler {
   constructor(io) {
@@ -6,6 +7,11 @@ class GameScheduler {
     /** All searching players */
     this.lobby = [];
     this.games = [];
+  }
+
+  takeNewPlayer(name, socket) {
+    const player = new Player(name, socket, () => this.joinLobby(player));
+    this.joinLobby(player);
   }
 
   joinLobby(player) {
@@ -25,6 +31,7 @@ class GameScheduler {
     if (searchingPlayers.length < numberOfPlayers) return;
 
     const players = searchingPlayers.slice(0, numberOfPlayers);
+    players.forEach(player => this.leaveLobby(player.socket));
     const game = new Game(players, this.io);
     this.games = this.games.concat(game);
   }

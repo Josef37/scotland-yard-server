@@ -1,7 +1,12 @@
 class Player {
-  constructor(name, socket) {
+  constructor(name, socket, joinLobby) {
     this.name = name;
     this.socket = socket;
+    this.joinLobby = joinLobby;
+    this.initValues();
+  }
+
+  initValues() {
     this.game = null;
     this.ownPieceIds = [];
     this.isMrX = false;
@@ -11,7 +16,13 @@ class Player {
     this.socket.join(game.room);
     this.game = game;
     this.initClientGame();
-    this.initClientMoveHandler();
+    this.initClientEventHandlers();
+  }
+
+  leaveGame() {
+    this.socket.leave(this.game.room);
+    this.joinLobby();
+    this.initValues();
   }
 
   initClientGame() {
@@ -25,10 +36,13 @@ class Player {
     });
   }
 
-  initClientMoveHandler() {
+  initClientEventHandlers() {
     this.socket.on("move", move => {
       if (!this.game.isMovePossible(move, this)) return;
       this.game.doMove(move, this);
+    });
+    this.socket.on("leave game", () => {
+      this.leaveGame();
     });
   }
 }
