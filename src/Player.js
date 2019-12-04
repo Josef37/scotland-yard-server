@@ -38,7 +38,6 @@ class Player {
 
   initClientEventHandlers() {
     this.socket.on("move", move => {
-      console.log(this.name, "move");
       if (!this.game.isMovePossible(move, this)) return;
       this.game.doMove(move, this);
     });

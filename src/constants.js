@@ -50,7 +50,7 @@ const bobbyTicktes = () => {
   ]);
 };
 
-const pieceColors = ["blue", "red", "yellow", "darkgreen", "white"];
+const pieceColors = ["blue", "red", "lightgreen", "yellow"];
 
 module.exports = {
   TransportationType,

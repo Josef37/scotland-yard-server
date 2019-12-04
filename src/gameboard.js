@@ -29,7 +29,7 @@ const gameboard = {
   ],
   startingPositions: {
     mrX: [1, 7],
-    detective: [3, 4, 5]
+    detective: [2, 3, 4, 5, 6]
   }
 };
 exports.gameboard = gameboard;

@@ -2,6 +2,7 @@ const {
   mrXTickets,
   pieceColors,
   detectiveTicktes,
+  bobbyTicktes,
   TicketType,
   transportationToTicketMap
 } = require("./constants");
@@ -15,14 +16,14 @@ class Game {
     this.room = random.string(10);
 
     const { stations, connections, startingPositions } = gameboard;
-    const { mrXPiece, detectivePieces, mrX } = this.generatePieces(
+    const { mrXPiece, detectivePieces, bobbyPieces } = this.generatePieces(
       players,
       startingPositions
     );
 
     this.stations = stations;
     this.connections = connections;
-    this.pieces = [mrXPiece].concat(detectivePieces);
+    this.pieces = [mrXPiece].concat(detectivePieces).concat(bobbyPieces);
     this.mrXTurn = true;
     this.doubleTicket = false;
     this.movedPieces = [];
@@ -61,6 +62,7 @@ class Game {
       playerName: mrX.name
     };
     mrX.ownPieceIds.push(mrXPiece.id);
+
     const detectivePositions = random.shuffle(
       startingPositions.detective.slice()
     );
@@ -76,7 +78,22 @@ class Game {
       detective.ownPieceIds.push(piece.id);
       return piece;
     });
-    return { mrXPiece, detectivePieces, mrX };
+
+    const bobbyPieces = [];
+    for (let index = players.length - 1; index <= 5 - 2; index++) {
+      const bobby = {
+        id: index + 2,
+        stationNumber: detectivePositions[index],
+        color: pieceColors[index],
+        tickets: bobbyTicktes(),
+        isMrX: false,
+        playerName: "Bobby #" + (index + 2 - players.length)
+      };
+      detectives.forEach(detective => detective.ownPieceIds.push(bobby.id));
+      bobbyPieces.push(bobby);
+    }
+
+    return { mrXPiece, detectivePieces, bobbyPieces };
   }
 
   isMovePossible(move, player) {

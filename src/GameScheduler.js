@@ -26,7 +26,7 @@ class GameScheduler {
     this.lobby = this.lobby.filter(player => player.socket !== socket);
   }
 
-  startGameWhenPossible(numberOfPlayers = 2) {
+  startGameWhenPossible(numberOfPlayers = 3) {
     const searchingPlayers = this.lobby;
     if (searchingPlayers.length < numberOfPlayers) return;
 
