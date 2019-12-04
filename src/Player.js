@@ -20,9 +20,9 @@ class Player {
   }
 
   leaveGame() {
-    this.socket.leave(this.game.room);
-    this.joinLobby();
+    this.removeListeners();
     this.initValues();
+    this.joinLobby();
   }
 
   initClientGame() {
@@ -38,12 +38,19 @@ class Player {
 
   initClientEventHandlers() {
     this.socket.on("move", move => {
+      console.log(this.name, "move");
       if (!this.game.isMovePossible(move, this)) return;
       this.game.doMove(move, this);
     });
     this.socket.on("leave game", () => {
       this.leaveGame();
     });
+  }
+
+  removeListeners() {
+    this.socket.leave(this.game.room);
+    this.socket.removeAllListeners("leave game");
+    this.socket.removeAllListeners("move");
   }
 }
 
