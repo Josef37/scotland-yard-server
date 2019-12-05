@@ -4,30 +4,54 @@ const Player = require("./Player");
 class GameScheduler {
   constructor(io) {
     this.io = io;
-    /** All searching players */
-    this.lobby = [];
+    /** @type {{pausing: Player[], searching: Player[]}} */
+    this.lobby = { pausing: [], searching: [] };
     this.games = [];
   }
 
   takeNewPlayer(name, socket) {
-    const player = new Player(name, socket, () => this.joinLobby(player));
-    this.joinLobby(player);
+    const player = new Player(name, socket, this);
+    this.stopSearching(player);
   }
 
-  joinLobby(player) {
-    this.lobby = this.lobby.concat(player);
+  broadcastLobby() {
     this.io.emit("load lobby", {
-      players: { playing: [], searching: this.lobby.map(player => player.name) }
+      players: {
+        pausing: this.lobby.pausing.map(player => player.name),
+        searching: this.lobby.searching.map(player => player.name)
+      }
     });
+  }
+
+  startSearching(player) {
+    this.lobby.pausing = this.lobby.pausing.filter(
+      otherPlayer => otherPlayer !== player
+    );
+    this.lobby.searching = this.lobby.searching.concat(player);
+    this.broadcastLobby();
+    this.startGameWhenPossible();
+  }
+
+  stopSearching(player) {
+    this.lobby.searching = this.lobby.searching.filter(
+      otherPlayer => otherPlayer !== player
+    );
+    this.lobby.pausing = this.lobby.pausing.concat(player);
+    this.broadcastLobby();
     this.startGameWhenPossible();
   }
 
   leaveLobby(socket) {
-    this.lobby = this.lobby.filter(player => player.socket !== socket);
+    this.lobby.pausing = this.lobby.pausing.filter(
+      player => player.socket !== socket
+    );
+    this.lobby.searching = this.lobby.searching.filter(
+      player => player.socket !== socket
+    );
   }
 
-  startGameWhenPossible(numberOfPlayers = 3) {
-    const searchingPlayers = this.lobby;
+  startGameWhenPossible(numberOfPlayers = 2) {
+    const searchingPlayers = this.lobby.searching;
     if (searchingPlayers.length < numberOfPlayers) return;
 
     const players = searchingPlayers.slice(0, numberOfPlayers);

@@ -1,9 +1,17 @@
 class Player {
-  constructor(name, socket, joinLobby) {
+  constructor(name, socket, gameScheduler) {
     this.name = name;
     this.socket = socket;
-    this.joinLobby = joinLobby;
+    this.gameScheduler = gameScheduler;
     this.initValues();
+    this.socket.on("start searching", fn => {
+      if (!this.game) gameScheduler.startSearching(this);
+      fn(!this.game);
+    });
+    this.socket.on("stop searching", fn => {
+      if (!this.game) gameScheduler.stopSearching(this);
+      fn(!this.game);
+    });
   }
 
   initValues() {
@@ -20,9 +28,9 @@ class Player {
   }
 
   leaveGame() {
-    this.removeListeners();
+    this.removeClientEventHandlers();
     this.initValues();
-    this.joinLobby();
+    this.gameScheduler.stopSearching(this);
   }
 
   initClientGame() {
@@ -46,7 +54,7 @@ class Player {
     });
   }
 
-  removeListeners() {
+  removeClientEventHandlers() {
     this.socket.leave(this.game.room);
     this.socket.removeAllListeners("leave game");
     this.socket.removeAllListeners("move");
