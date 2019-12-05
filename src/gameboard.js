@@ -25,7 +25,8 @@ const gameboard = {
       station1Number: 1,
       station2Number: 4,
       type: TransportationType.Underground
-    }
+    },
+    { station1Number: 1, station2Number: 7, type: TransportationType.Ferry }
   ],
   startingPositions: {
     mrX: [1, 7],
