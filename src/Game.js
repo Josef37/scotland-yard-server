@@ -202,12 +202,35 @@ class Game {
       this.io.to(this.room).emit("mr x done");
       return true;
     } else {
-      if (this.movedPieces.length < this.pieces.length - 1) return false;
+      if (!this.allPersecutorsMovedIfPossible()) return false;
       this.mrXTurn = true;
       this.movedPieces = [];
       this.io.to(this.room).emit("detectives done");
       return true;
     }
+  }
+
+  allPersecutorsMovedIfPossible() {
+    return this.pieces
+      .filter(piece => !piece.isMrX)
+      .every(
+        piece =>
+          this.movedPieces.includes(piece.id) || this.pieceCantMove(piece)
+      );
+  }
+
+  pieceCantMove(piece) {
+    return [
+      ...new Set(
+        getPossibleConnections(piece.stationNumber, this.connections)
+          .filter(connection => this.pieceHasTicket(piece, connection.type))
+          .map(connection =>
+            connection.station1Number === piece.stationNumber
+              ? connection.station2Number
+              : connection.station1Number
+          )
+      )
+    ].every(stationNumber => this.isPersecutorAt(stationNumber));
   }
 
   getWinner() {
@@ -224,14 +247,7 @@ class Game {
 
   isMrXSurrounded() {
     const mrXPiece = this.pieces.find(piece => piece.isMrX);
-    const stationsNextToMrX = getStationsNextToStation(
-      mrXPiece.stationNumber,
-      this.connections
-    );
-    const isMrXSourrounded = stationsNextToMrX.every(stationNumber =>
-      this.pieces.find(piece => piece.stationNumber === stationNumber)
-    );
-    return isMrXSourrounded;
+    return this.pieceCantMove(mrXPiece);
   }
 
   isMrXCaught() {
@@ -273,14 +289,12 @@ function findConnections(connections, station1Number, station2Number) {
   );
 }
 
-const getStationsNextToStation = (stationNumber, connections) => {
-  return connections.reduce((stations, connection) => {
-    if (stationNumber === connection.station1Number)
-      return stations.concat(connection.station2Number);
-    else if (stationNumber === connection.station2Number)
-      return stations.concat(connection.station1Number);
-    return stations;
-  }, []);
+const getPossibleConnections = (stationNumber, connections) => {
+  return connections.filter(
+    connection =>
+      stationNumber === connection.station1Number ||
+      stationNumber === connection.station2Number
+  );
 };
 
 module.exports = Game;
